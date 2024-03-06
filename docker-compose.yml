@@ -9,4 +9,4 @@ services:
       - ./data:/data
       - /path/to/navidrome/data:/navidrome:ro # Path to Navidrome data folder containing the navidrome.db file
       - /path/to/music/playlists:/playlists # Path to your playlist folder that Navidrome can access
-    command: music-utils -save-spotify
+    command: ./music-utils -save-spotify
