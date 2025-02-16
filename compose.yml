@@ -1,0 +1,12 @@
+services:
+  music-utils:
+    image: ghcr.io/zibbp/music-utils:main
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=America/Chicago
+      - TIDAL_CLIENT_ID=
+      - TIDAL_CLIENT_SECRET=
+      - SPOTIFY_CLIENT_ID=
+      - SPOTIFY_CLIENT_SECRET=
+
