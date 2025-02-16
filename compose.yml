@@ -9,4 +9,5 @@ services:
       - TIDAL_CLIENT_SECRET=
       - SPOTIFY_CLIENT_ID=
       - SPOTIFY_CLIENT_SECRET=
-
+    ports:
+      - 28542:28542 # used for spotify auth callback
