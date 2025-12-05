@@ -230,26 +230,60 @@ func (s *Service) standardHttpGetRequest(reqUrl string, params map[string]string
 }
 
 func (s *Service) GetUserPlaylists() ([]PlaylistItemV2, error) {
-	playlists, err := s.standardHttpGetRequest(fmt.Sprintf("%s/my-collection/playlists/folders/flattened", apiURL2), map[string]string{
-		"offset":     "0",
-		"order":      "DATE",
-		"locale":     "en_US",
-		"deviceType": "BROWSER",
-		"limit":      "50",
-	})
-	if err != nil {
-		return nil, err
+	allItems := make([]PlaylistItemV2, 0)
+	cursor := ""
+
+loop:
+	for {
+		params := map[string]string{
+			"offset":     "0",
+			"order":      "DATE",
+			"locale":     "en_US",
+			"deviceType": "BROWSER",
+			"limit":      "50",
+		}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+
+		body, err := s.standardHttpGetRequest(fmt.Sprintf("%s/my-collection/playlists/folders/flattened", apiURL2), params)
+		if err != nil {
+			return nil, err
+		}
+
+		var resp UserPlaylistsV2Response
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, err
+		}
+
+		allItems = append(allItems, resp.Items...)
+
+		if resp.Cursor == nil {
+			break
+		}
+
+		switch c := resp.Cursor.(type) {
+		case string:
+			if c == "" {
+				break loop
+			}
+			cursor = c
+		case map[string]interface{}:
+			if v, ok := c["cursor"].(string); ok && v != "" {
+				cursor = v
+				continue
+			}
+			if v, ok := c["value"].(string); ok && v != "" {
+				cursor = v
+				continue
+			}
+			break loop
+		default:
+			break loop
+		}
 	}
 
-	var tidalUserPlaylists UserPlaylistsV2Response
-	err = json.Unmarshal(playlists, &tidalUserPlaylists)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debug().Msg(fmt.Sprintf("%s", tidalUserPlaylists.Cursor))
-
-	return tidalUserPlaylists.Items, nil
+	return allItems, nil
 }
 
 func (s *Service) GetPlaylist(playlistID string) (*Playlist, error) {
