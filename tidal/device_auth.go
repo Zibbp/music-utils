@@ -14,8 +14,9 @@ import (
 const (
 	authURL = "https://auth.tidal.com/v1/oauth2"
 	// API Keys - https://github.com/yaronzz/Tidal-Media-Downloader/blob/bb5be5e5fba3a648cdda9c8b46c707682fb5472c/TIDALDL-PY/tidal_dl/apiKey.py
-	clientId     = "7m7Ap0JC9j1cOM3n"
-	clientSecret = "vRAdA108tlvkJpTsGZS8rGZ7xTlbJ0qaZ2K9saEzsgY="
+	// https://github.com/nathom/streamrip/pull/932
+	clientId     = "fX2JxdmntZWK0ixT"
+	clientSecret = "1Nm5AfDAjxrgJFJbKNWLeAyKGVGmINuXPPLHVXAvxAg="
 )
 
 type DeviceCode struct {
