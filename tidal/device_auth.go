@@ -42,10 +42,11 @@ type AuthLogin struct {
 }
 
 type Refresh struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int64  `json:"expires_in"`
-	User        User   `json:"user"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int64  `json:"expires_in"`
+	User         User   `json:"user"`
 }
 
 type User struct {
@@ -267,7 +268,7 @@ func (s *Service) refreshSession(refreshToken string) (*Refresh, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to refresh session: %s", resp.Status)
+		return nil, fmt.Errorf("failed to refresh session: %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	err = json.Unmarshal(body, &refresh)

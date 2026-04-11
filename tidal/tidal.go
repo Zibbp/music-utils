@@ -10,8 +10,11 @@ import (
 )
 
 var (
-	apiURL  = "https://api.tidal.com/v1"
-	apiURL2 = "https://listen.tidal.com/v2"
+	apiURL = "https://api.tidal.com/v1"
+	// listen.tidal.com now redirects to tidal.com for v2 collection endpoints.
+	// net/http strips Authorization on cross-host redirects, which causes
+	// downstream 400 "Token is missing" responses. Use tidal.com directly.
+	apiURL2 = "https://tidal.com/v2"
 )
 
 type Service struct {
@@ -53,43 +56,52 @@ func Initialize(clientId, clientSecret string, config *config.JsonConfigService)
 	return &s, nil
 }
 
+func (s *Service) runDeviceAuthFlow() error {
+	deviceCode, err := s.getDeviceCode()
+	if err != nil {
+		return err
+	}
+
+	log.Info().Msgf("Please visit the following URL to authorize this application: https://%v", deviceCode.VerificationURIComplete)
+
+	// start poll for authorization
+	for {
+		loginResponse, err := s.tokenLogin(*deviceCode)
+		if err != nil {
+			// continue polling
+			log.Debug().Msg("Failed to login with Tidal")
+
+		}
+
+		if loginResponse != nil && (AuthLogin{}) == loginResponse.AuthLogin {
+			if loginResponse.AuthError.Error == "expired_token" {
+				log.Fatal().Msg("Tidal auth failed - device code expired")
+			}
+		} else {
+			s.Config.JsonConfig.Tidal.UserID = strconv.Itoa(int(loginResponse.AuthLogin.User.UserID))
+			s.Config.JsonConfig.Tidal.AccessToken = loginResponse.AuthLogin.AccessToken
+			s.Config.JsonConfig.Tidal.RefreshToken = loginResponse.AuthLogin.RefreshToken
+			if err := s.Config.Save(); err != nil {
+				return err
+			}
+			break
+		}
+
+		d := time.Duration(deviceCode.Interval) * time.Second
+		log.Debug().Msgf("Waiting %d seconds before trying again.", deviceCode.Interval)
+		time.Sleep(d)
+
+	}
+
+	return nil
+}
+
 // Perform device authentication with Tidal to access user resources
 func (s *Service) DeviceAuthenticate() error {
 	if s.Config.Get().Tidal.AccessToken == "" || s.Config.Get().Tidal.RefreshToken == "" {
 		log.Info().Msg("No Tidal access token found")
-
-		deviceCode, err := s.getDeviceCode()
-		if err != nil {
+		if err := s.runDeviceAuthFlow(); err != nil {
 			return err
-		}
-
-		log.Info().Msgf("Please visit the following URL to authorize this application: https://%v", deviceCode.VerificationURIComplete)
-
-		// start poll for authorization
-		for {
-			loginResponse, err := s.tokenLogin(*deviceCode)
-			if err != nil {
-				// continue polling
-				log.Debug().Msg("Failed to login with Tidal")
-
-			}
-
-			if (loginResponse != nil && AuthLogin{} == loginResponse.AuthLogin) {
-				if loginResponse.AuthError.Error == "expired_token" {
-					log.Fatal().Msg("Tidal auth failed - device code expired")
-				}
-			} else {
-				s.Config.JsonConfig.Tidal.UserID = strconv.Itoa(int(loginResponse.AuthLogin.User.UserID))
-				s.Config.JsonConfig.Tidal.AccessToken = loginResponse.AuthLogin.AccessToken
-				s.Config.JsonConfig.Tidal.RefreshToken = loginResponse.AuthLogin.RefreshToken
-				s.Config.Save()
-				break
-			}
-
-			d := time.Duration(deviceCode.Interval) * time.Second
-			log.Debug().Msgf("Waiting %d seconds before trying again.", deviceCode.Interval)
-			time.Sleep(d)
-
 		}
 	} else {
 		log.Info().Msg("Tidal access token found")
@@ -99,12 +111,29 @@ func (s *Service) DeviceAuthenticate() error {
 			log.Info().Msg("Tidal access token expired")
 			refresh, err := s.refreshSession(s.Config.Get().Tidal.RefreshToken)
 			if err != nil {
-				return err
+				log.Warn().Err(err).Msg("Failed to refresh Tidal session; falling back to device authorization")
+				s.Config.JsonConfig.Tidal.UserID = ""
+				s.Config.JsonConfig.Tidal.AccessToken = ""
+				s.Config.JsonConfig.Tidal.RefreshToken = ""
+				if err := s.Config.Save(); err != nil {
+					return err
+				}
+
+				if err := s.runDeviceAuthFlow(); err != nil {
+					return err
+				}
+			} else {
+				s.Config.JsonConfig.Tidal.AccessToken = refresh.AccessToken
+				if refresh.RefreshToken != "" {
+					s.Config.JsonConfig.Tidal.RefreshToken = refresh.RefreshToken
+				}
+				if refresh.User.UserID != 0 {
+					s.Config.JsonConfig.Tidal.UserID = strconv.Itoa(int(refresh.User.UserID))
+				}
+				if err := s.Config.Save(); err != nil {
+					return err
+				}
 			}
-
-			s.Config.JsonConfig.Tidal.AccessToken = refresh.AccessToken
-			s.Config.Save()
-
 		}
 
 		log.Info().Msg("Tidal access token valid")
