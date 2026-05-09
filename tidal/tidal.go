@@ -154,10 +154,17 @@ func (s *Service) ToNavidromePlaylist(playlist *Playlist) (navidrome.Playlist, e
 	np.Tracks = make([]navidrome.Track, 0)
 
 	for _, track := range playlist.Tracks {
+		artistName := ""
+		if len(track.Artists) > 0 {
+			artistName = track.Artists[0].Name
+		} else if track.Artist.Name != "" {
+			artistName = track.Artist.Name
+		}
+
 		np.Tracks = append(np.Tracks, navidrome.Track{
 			ID:       strconv.FormatInt(track.ID, 10),
 			Title:    track.Title,
-			Artist:   track.Artists[0].Name,
+			Artist:   artistName,
 			Album:    track.Album.Title,
 			Duration: track.Duration,
 			ISRC:     track.Isrc,
